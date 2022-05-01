@@ -1,0 +1,5 @@
+tqdm
+scipy==1.2.1
+scikit-image
+timm
+segmentation_models_pytorch
