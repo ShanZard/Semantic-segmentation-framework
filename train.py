@@ -15,7 +15,7 @@ import torch.nn
 # Custom includes
 from dataloaders import dataloader as DL
 from dataloaders import custom_transforms as tr
-from models import create_model
+# from models import create_model
 # from model import get_model
 
 here = osp.dirname(osp.abspath(__file__))
@@ -36,7 +36,7 @@ def main():
         '--batch-size', type=int, default=16, help='batch size for training the model'
     )
     parser.add_argument(
-        '--group-num', type=int, default=1, help='group number for group normalization'
+        '--input-size',type=int,default=256,help='input image size'
     )
     parser.add_argument(
         '--max-epoch', type=int, default=200, help='max epoch'
@@ -48,13 +48,10 @@ def main():
         '--interval-validate', type=int, default=1, help='interval epoch number to valide the model'
     )
     parser.add_argument(
-        '--lr-model', type=float, default=2e-4, help='learning rate'
+        '--lr-model', type=float, default=5e-4, help='learning rate'
     )
     parser.add_argument(
         '--seed',type=int,default=26,help='set random seed'
-    )
-    parser.add_argument(
-        '--lr-decrease-rate', type=float, default=0.1, help='ratio multiplied to initial lr',
     )
     parser.add_argument(
         '--weight-decay', type=float, default=0.0005, help='weight decay',
@@ -90,7 +87,7 @@ def main():
 
     # 1. dataset
     composed_transforms_tr = transforms.Compose([
-        tr.RandomScaleCrop(512),
+        tr.RandomScaleCrop(args.input_size),
         # tr.RandomRotate(),
         # # tr.RandomFlip(),
         # # tr.elastic_transform(),
@@ -102,7 +99,6 @@ def main():
     ])
 
     composed_transforms_ts = transforms.Compose([
-        tr.RandomScaleCrop(512),
         tr.Normalize_tf(),
         tr.ToTensor()
     ])
@@ -117,7 +113,7 @@ def main():
 
     # 2. model
   
-    model=create_model('DeepLabV3Plus',encoder_name='resnet34', encoder_depth=5, encoder_weights='imagenet', encoder_output_stride=16, decoder_channels=256, decoder_atrous_rates=(12, 24, 36), in_channels=3, classes=2, activation=None, upsampling=4, aux_params=None)
+    model=net#smp.create_model('DeepLabV3Plus',encoder_name='resnet34', encoder_depth=5, encoder_weights='imagenet', encoder_output_stride=16, decoder_channels=256, decoder_atrous_rates=(12, 24, 36), in_channels=3, classes=2, activation=None, upsampling=4, aux_params=None)
     model=torch.nn.DataParallel(model.cuda(),device_ids=args.gpus)
     # model.cuda()
 
@@ -151,7 +147,6 @@ def main():
         model=model,
         optimizer_model=optim_model,
         lr_gen=args.lr_model,
-        lr_decrease_rate=args.lr_decrease_rate,
         loader=mydataloader,
         val_loader=mydataloader_val,
         out=args.out,

@@ -45,17 +45,15 @@ class Trainer(object):
 
     def __init__(self, cuda, model, optimizer_model, 
                  loader,val_loader,out, max_epoch, stop_epoch=None, lr_gen=1e-3, 
-                 lr_decrease_rate=0.95, interval_validate=None, batch_size=8, warmup_epoch=-1,half_train=True):
+             interval_validate=None, batch_size=8, warmup_epoch=-1):
         self.cuda = cuda
         self.model=model
         self.warmup_epoch = warmup_epoch
         self.optim_model = optimizer_model
         self.lr_gen = lr_gen
-        self.lr_decrease_rate = lr_decrease_rate
         self.batch_size = batch_size
         self.loader=loader
         self.val_loader = val_loader
-
         self.time_zone = 'Asia/Hong_Kong'
         self.timestamp_start = \
             datetime.now(pytz.timezone(self.time_zone))
@@ -88,12 +86,10 @@ class Trainer(object):
         self.iteration = 0
         self.max_epoch = max_epoch
         self.stop_epoch = stop_epoch if stop_epoch is not None else max_epoch
-        self.best_disc_dice = 0.0
-        self.running_loss_tr = 0.0
-        self.half_train=half_train
 
         self.best_mean_IoU = 0.0
         self.best_epoch = -1
+        self.lr_scheduler=torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_model,100,eta_min=1e-6,last_epoch=-1)
 
 
     def validate(self):
@@ -136,16 +132,16 @@ class Trainer(object):
             f1_score1=(2 * pa[1] * recall[1]) / (pa[1]  +  recall[1])
             f1_score0=(2 * pa[0] * recall[0]) / (pa[0]  +  recall[0])
             metrics.append((val_loss, pa[1], IoU[1],mIoU,recall[1],f1_score1))
-            self.writer.add_scalar('val_data/loss_CE', val_loss, self.epoch * (len(self.val_loader)))
-            self.writer.add_scalar('val_data/val_Precision1', pa[0], self.epoch * (len(self.val_loader)))
-            self.writer.add_scalar('val_data/val_Precision2', pa[1], self.epoch * (len(self.val_loader)))
-            self.writer.add_scalar('val_data/val_IoU1', IoU[0], self.epoch * (len(self.val_loader)))
-            self.writer.add_scalar('val_data/val_IoU2', IoU[1], self.epoch * (len(self.val_loader)))
-            self.writer.add_scalar('val_data/val_Recall1', recall[0], self.epoch * (len(self.val_loader)))
-            self.writer.add_scalar('val_data/val_Recall2', recall[1], self.epoch * (len(self.val_loader)))
-            self.writer.add_scalar('val_data/val_mIoU', mIoU, self.epoch * (len(self.val_loader)))
-            self.writer.add_scalar('val_data/val_F1_score1', f1_score0, self.epoch * (len(self.val_loader)))
-            self.writer.add_scalar('val_data/val_F1_score2', f1_score1, self.epoch * (len(self.val_loader)))
+            self.writer.add_scalar('val_data/loss_CE', val_loss, self.epoch )
+            self.writer.add_scalar('val_data/val_Precision1', pa[0], self.epoch )
+            self.writer.add_scalar('val_data/val_Precision2', pa[1], self.epoch )
+            self.writer.add_scalar('val_data/val_IoU1', IoU[0], self.epoch )
+            self.writer.add_scalar('val_data/val_IoU2', IoU[1], self.epoch)
+            self.writer.add_scalar('val_data/val_Recall1', recall[0], self.epoch)
+            self.writer.add_scalar('val_data/val_Recall2', recall[1], self.epoch )
+            self.writer.add_scalar('val_data/val_mIoU', mIoU, self.epoch )
+            self.writer.add_scalar('val_data/val_F1_score1', f1_score0, self.epoch)
+            self.writer.add_scalar('val_data/val_F1_score2', f1_score1, self.epoch )
             mean_IoU = np.mean(IoU[0] +IoU[1])
             is_best = mean_IoU > self.best_mean_IoU
             if is_best:
@@ -192,7 +188,6 @@ class Trainer(object):
 
         self.model.train()
         self.running_seg_loss = 0.0
-        self.running_total_loss = 0.0
 
         start_time = timeit.default_timer()
         for batch_idx, sampleS in tqdm.tqdm(
@@ -214,9 +209,6 @@ class Trainer(object):
             imageS = sampleS['image'].cuda()
 
             label=sampleS['label'].cuda()
-            if self.half_train ==True:
-                imageS=imageS.half()
-                label=label.half()
 
             output = self.model(imageS)
 
@@ -236,7 +228,7 @@ class Trainer(object):
             self.optim_model.step()
 
             # write image log
-            if iteration % 50 == 0:  #interval 50 iter writer logs
+            if iteration % 100 == 0:  #interval 50 iter writer logs
                 grid_image = make_grid(
                     imageS[0, ...].clone().cpu().data, 1, normalize=True)
                 self.writer.add_image('image', grid_image, iteration)
@@ -279,19 +271,18 @@ class Trainer(object):
         for epoch in tqdm.trange(self.epoch, self.max_epoch,
                                  desc='Train', ncols=80):
             self.epoch = epoch
+            self.writer.add_scalar('lr_gen', get_lr(self.optim_model), self.epoch )
             self.train_epoch()
-            if self.stop_epoch == self.epoch:
-                print('Stop epoch at %d' % self.stop_epoch)
-                break
-
-            if (epoch+1) % 10 == 0:
-                _lr_gen = self.lr_gen * self.lr_decrease_rate
-                for param_group in self.optim_model.param_groups:
-                    param_group['lr'] = _lr_gen
-            self.writer.add_scalar('lr_gen', get_lr(self.optim_model), self.epoch * (len(self.loader)))
+            self.lr_scheduler.step()   
             if (self.epoch+1) % self.interval_validate == 0:
                 self.validate()
+
+            if self.stop_epoch == self.epoch:
+                print('Stop epoch at %d' % self.stop_epoch)
+                break                
         self.writer.close()
+
+
 
 
 
