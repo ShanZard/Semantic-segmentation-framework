@@ -19,7 +19,7 @@ from datetime import datetime
 import pytz
 from networks.deeplabv3 import *
 import cv2
-
+from fvcore.nn import FlopCountAnalysis, parameter_count_table,flop_count_table
 
 def main():
     parser = argparse.ArgumentParser()
@@ -75,8 +75,7 @@ def main():
     test_loader = DataLoader(db_test, batch_size=4, shuffle=False, num_workers=1)
 
     # 2. model
-    model = create_model('DeepLabV3Plus',encoder_name='resnet34', encoder_depth=5, encoder_weights='imagenet', encoder_output_stride=16, decoder_channels=256, 
-    decoder_atrous_rates=(12, 24, 36), in_channels=3, classes=2, activation=None, upsampling=4, aux_params=None)
+    model = net
     model=torch.nn.DataParallel(model.cuda(),device_ids=args.gpus)
 
     if torch.cuda.is_available():
@@ -150,7 +149,8 @@ def main():
     print('''\n==>mIoU : {0}'''.format(mIoU))
     print('''\n==>F1_score0 : {0}'''.format(f1_score0))
     print('''\n==>F1_score1 : {0}'''.format(f1_score1))
-  
+    dummy_input=torch.randn(1, 3, 512, 512)
+    print(flop_count_table(FlopCountAnalysis(model, dummy_input)))
     with open(osp.join(args.test_prediction_save_path, 'test_log.csv'), 'a') as f:
         elapsed_time = (
                 datetime.now(pytz.timezone('Asia/Hong_Kong')) -
