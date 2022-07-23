@@ -20,7 +20,7 @@ import pytz
 from networks.deeplabv3 import *
 import cv2
 from fvcore.nn import FlopCountAnalysis, parameter_count_table,flop_count_table
-
+from torchstat import stat
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model-file', type=str, default='/root/BEAL/logs/20220501_084718.385672/checkpoint_68.pth.tar',
@@ -151,6 +151,7 @@ def main():
     print('''\n==>F1_score1 : {0}'''.format(f1_score1))
     dummy_input=torch.randn(1, 3, 512, 512)
     print(flop_count_table(FlopCountAnalysis(model, dummy_input)))
+    stat(model,(3,512,512))
     with open(osp.join(args.test_prediction_save_path, 'test_log.csv'), 'a') as f:
         elapsed_time = (
                 datetime.now(pytz.timezone('Asia/Hong_Kong')) -
