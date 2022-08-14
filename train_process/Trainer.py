@@ -24,23 +24,6 @@ celoss=torch.nn.CrossEntropyLoss()
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
         return param_group['lr']
-def largest_component(image):
-    # dim = len(image.shape)
-    # if(image.sum() == 0 ):
-    #     print('the largest component is null')
-    #     return image
-    # if(dim == 2):
-    #     s = ndimage.generate_binary_structure(2,1)
-    # elif(dim == 3):
-    #     s = ndimage.generate_binary_structure(3,1)
-    # else:
-    #     raise ValueError("the dimension number should be 2 or 3")
-    numpatches = measure.label(image, connectivity=1)
-    numpatches=numpatches.max()
-    # loss = 1 - numpatches
-    loss = np.log(numpatches)
-    
-    return loss
 class Trainer(object):
 
     def __init__(self, cuda, model, optimizer_model, 
