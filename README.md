@@ -30,7 +30,7 @@ pip install -r requirements
 ```
 ├── data
 │   ├── your_dataset
-|	  |	  |── train
+|	  |	 |── train
 │   │ 	|	  ├── images
 │   │   │   │   ├── xxx{img_suffix}
 │   │   │   │   ├── yyy{img_suffix}
