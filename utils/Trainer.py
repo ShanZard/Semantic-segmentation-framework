@@ -1,34 +1,33 @@
+
 from datetime import datetime
 import os
 import os.path as osp
 import timeit
-from torchvision.utils import make_grid
-import time
-
 import numpy as np
 import pytz
 import torch
 import torch.nn.functional as F
 # from myloss import myloss
 from tensorboardX import SummaryWriter
-
 import tqdm
 import socket
 from utils.metrics import SegmentationMetric
 from utils.Utils import *
+from .convertrgb import out_to_rgb
 '''loss fuction'''
 bceloss = torch.nn.BCELoss()#You should for output to use sigmoid 
 mseloss = torch.nn.MSELoss()
 celoss=torch.nn.CrossEntropyLoss()
-
+import segmentation_models_pytorch as smp
+diceloss=smp.losses.DiceLoss(mode='multiclass')
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
         return param_group['lr']
 class Trainer(object):
 
     def __init__(self, cuda, model, optimizer_model, 
-                 loader,val_loader,out, max_epoch, stop_epoch=None, lr_gen=1e-3, 
-             interval_validate=None, batch_size=8, warmup_epoch=-1):
+                 loader,val_loader,out, max_epoch,classes,palette, stop_epoch=None, lr_gen=1e-3, \
+                interval_validate=None, batch_size=8, warmup_epoch=-1):
         self.cuda = cuda
         self.model=model
         self.warmup_epoch = warmup_epoch
@@ -73,13 +72,15 @@ class Trainer(object):
         self.best_mean_IoU = 0.0
         self.best_epoch = -1
         self.lr_scheduler=torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_model,100,eta_min=1e-6,last_epoch=-1)
-
+        self.palette=palette
+        self.classes=classes
 
     def validate(self):
         training = self.model.training
         self.model.eval()
-        seg=SegmentationMetric(2)
-        val_loss = 0
+        seg=SegmentationMetric(len(self.classes))
+        val_ce_loss = 0
+        val_de_loss = 0
         metrics = []
         with torch.no_grad():
 
@@ -87,45 +88,50 @@ class Trainer(object):
                     enumerate(self.val_loader), total=len(self.val_loader),
                     desc='Valid iteration=%d' % self.iteration, ncols=80,
                     leave=False):
-                data = sample['image']
-                target_map = sample['map']
+                data = sample['img']
                 label=sample['label']
                 if self.cuda:
-                    data, target_map,label= data.cuda(), target_map.cuda(),label.cuda()
+                    data, label= data.cuda(),label.cuda()
                 with torch.no_grad():
-                    predictions = self.model(data)
-
-                loss = celoss(predictions, label)
-                loss_data = loss.data.item()
-                if np.isnan(loss_data):
+                    predictions= self.model(data)
+                label=torch.squeeze(label).long()
+                loss_ce = celoss(predictions, label)
+                loss_de = diceloss(predictions, label)
+                loss_data_ce = loss_ce.data.item()
+                loss_data_de = loss_de.data.item()
+                if np.isnan(loss_data_ce):
                     raise ValueError('loss is nan while validating')
-                val_loss += loss_data
-                target_map=target_map.int()
+                val_ce_loss += loss_data_ce
+                val_de_loss += loss_data_de
                 predictions=torch.argmax(torch.softmax(predictions,dim=1),dim=1)
                 predictions, label = predictions.cpu().detach().numpy(),label.cpu().detach().numpy()
                 predictions, label = predictions.astype(np.int32), label.astype(np.int32)
                 _  = seg.addBatch(predictions,label)
            
-            val_loss /= len(self.val_loader)
-
+            val_ce_loss /= len(self.val_loader)
+            val_de_loss /= len(self.val_loader)
             pa = seg.classPixelAccuracy()
             IoU = seg.IntersectionOverUnion()
             mIoU = seg.meanIntersectionOverUnion()
             recall = seg.recall()
-            f1_score1=(2 * pa[1] * recall[1]) / (pa[1]  +  recall[1])
-            f1_score0=(2 * pa[0] * recall[0]) / (pa[0]  +  recall[0])
-            metrics.append((val_loss, pa[1], IoU[1],mIoU,recall[1],f1_score1))
-            self.writer.add_scalar('val_data/loss_CE', val_loss, self.epoch )
-            self.writer.add_scalar('val_data/val_Precision1', pa[0], self.epoch )
-            self.writer.add_scalar('val_data/val_Precision2', pa[1], self.epoch )
-            self.writer.add_scalar('val_data/val_IoU1', IoU[0], self.epoch )
-            self.writer.add_scalar('val_data/val_IoU2', IoU[1], self.epoch)
-            self.writer.add_scalar('val_data/val_Recall1', recall[0], self.epoch)
-            self.writer.add_scalar('val_data/val_Recall2', recall[1], self.epoch )
+            mean_IoU = mIoU
+            f1_score=(2 * pa * recall) / (pa  +  recall)
+            mean_f1_score=np.mean(f1_score)
+            mean_precision=np.mean(pa)
+            mean_recall=np.mean(recall)
+
+            self.writer.add_scalar('val_data/loss_CE', val_ce_loss, self.epoch )
+            self.writer.add_scalar('val_data/deloss_CE', val_de_loss, self.epoch )
             self.writer.add_scalar('val_data/val_mIoU', mIoU, self.epoch )
-            self.writer.add_scalar('val_data/val_F1_score1', f1_score0, self.epoch)
-            self.writer.add_scalar('val_data/val_F1_score2', f1_score1, self.epoch )
-            mean_IoU = np.mean(IoU[0] +IoU[1])
+            self.writer.add_scalar('val_data/val_mPrecision', mean_precision, self.epoch )
+            self.writer.add_scalar('val_data/val_mRecall', mean_recall, self.epoch )
+            self.writer.add_scalar('val_data/val_mF1-score', mean_f1_score, self.epoch )            
+            for i in range(len(self.classes)):
+                self.writer.add_scalar(('val_Precision/'+self.classes[i]), pa[i], self.epoch )
+                self.writer.add_scalar(('val_Recall/'+self.classes[i]), recall[i], self.epoch)
+                self.writer.add_scalar(('val_IoU/'+self.classes[i]), IoU[i], self.epoch )
+                self.writer.add_scalar(('val_F1_score/'+self.classes[i]), f1_score[i], self.epoch)
+            metrics.append((val_ce_loss,mIoU,mean_f1_score))
             is_best = mean_IoU > self.best_mean_IoU
             if is_best:
                 self.best_epoch = self.epoch + 1
@@ -170,8 +176,8 @@ class Trainer(object):
     def train_epoch(self):
 
         self.model.train()
-        self.running_seg_loss = 0.0
-
+        self.running_ce_loss = 0.0
+        self.running_de_loss = 0.0 
         start_time = timeit.default_timer()
         for batch_idx, sampleS in tqdm.tqdm(
                 enumerate(self.loader), total=len(self.loader),
@@ -189,45 +195,41 @@ class Trainer(object):
             for param in self.model.parameters():
                 param.requires_grad = True
 
-            imageS = sampleS['image'].cuda()
-
+            images = sampleS['img'].cuda()
             label=sampleS['label'].cuda()
+            label=torch.squeeze(label).long()
 
-            output = self.model(imageS)
 
-            loss_seg = celoss(output, label)
+            output= self.model(images)
+            loss_ce = celoss(output, label)
+            loss_de=diceloss(output,label)
             prediction=torch.argmax(torch.softmax(output,dim=1),dim=1).float().cpu()
-            
-            # if self.epoch>20:
-            #     lossnew=largest_component(prediction)
-            #     loss_seg=lossnew*loss_seg
-            self.running_seg_loss += loss_seg.item()
-            loss_seg_data = loss_seg.data.item()
+
+            self.running_ce_loss += loss_ce.item()
+            self.running_de_loss += loss_de.item()
+
+            loss_seg_data = loss_ce.data.item()
+            loss=loss_ce+loss_de*0.4
             if np.isnan(loss_seg_data):
                 raise ValueError('loss is nan while training')
-            labelfloat=label.float()
-
-            loss_seg.backward()
+            loss.backward()
             self.optim_model.step()
 
             # write image log
-            if iteration % 100 == 0:  #interval 50 iter writer logs
-                grid_image = make_grid(
-                    imageS[0, ...].clone().cpu().data, 1, normalize=True)
-                self.writer.add_image('image', grid_image, iteration)
-
-                grid_image = make_grid(
-                    labelfloat[0, ...].clone().cpu().data, 1, normalize=True)
-                self.writer.add_image('target', grid_image, iteration)
-
-                grid_image = make_grid(prediction[0, ...].clone().cpu().data, 1, normalize=True)
-                self.writer.add_image('prediction', grid_image, iteration)
+            if iteration % 10 == 0:  #interval 50 iter writer logs 
+                images=images[0, ...].clone().cpu().data
+                self.writer.add_image('image', images, iteration)           
+                label=label[0, ...].clone().cpu().data
+                label=out_to_rgb(label,self.palette,self.classes)
+                self.writer.add_image('target', label, iteration)
+                prediction=prediction[0, ...].clone().cpu().data
+                prediction=out_to_rgb(prediction,self.palette,self.classes)
+                self.writer.add_image('prediction', prediction, iteration)
 
 
             # if self.epoch > self.warmup_epoch:
             # write train different network or freezn backbone parameter
             self.writer.add_scalar('train/loss_seg', loss_seg_data, iteration)
-
             metrics.append(loss_seg_data)
             
 
@@ -240,14 +242,14 @@ class Trainer(object):
                 log = map(str, log)
                 f.write(','.join(log) + '\n')
 
-        self.running_seg_loss /= len(self.loader)
+        self.running_ce_loss/= len(self.loader)
 
 
         stop_time = timeit.default_timer()
 
         print('\n[Epoch: %d] lr:%f,  Average segLoss: %f, '
               'Execution time: %.5f' %
-              (self.epoch, get_lr(self.optim_model), self.running_seg_loss, stop_time - start_time))
+              (self.epoch, get_lr(self.optim_model), self.running_ce_loss, stop_time - start_time))
 
 
     def train(self):

@@ -1,5 +1,6 @@
 tqdm
-scipy==1.2.1
+scipy
 scikit-image
 timm
 segmentation_models_pytorch
+monai
