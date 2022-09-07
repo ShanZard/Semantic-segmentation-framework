@@ -31,7 +31,7 @@ pip install -r requirements
 ├── data
 │   ├── your_dataset
 |   |   |——train
-│   │ 	|	  ├── images
+|   |   |   ├── images
 │   │   │   │   ├── xxx{img_suffix}
 │   │   │   │   ├── yyy{img_suffix}
 │   │   │   │   ├── zzz{img_suffix}
