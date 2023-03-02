@@ -92,15 +92,15 @@ def main():
     np.random.seed(args.seed)
 
 #The part of dataset
-    train_img_path = osp.join(osp.join(args.datasetdir,'train'), "images/train")
-    train_gt_path = osp.join(osp.join(args.datasetdir,'train'), "mask/train")
+    train_img_path = osp.join(osp.join(args.datasetdir,'train'), "image")
+    train_gt_path = osp.join(osp.join(args.datasetdir,'train'), "label)
     train_img_names = sorted(os.listdir(train_img_path))   
     train_gt_names = train_img_names
     train_img_num = len(train_img_names)
     train_indices = np.arange(train_img_num)[:]
 
-    val_img_path = osp.join(osp.join(args.datasetdir,'val'), "images/val")
-    val_gt_path = osp.join(osp.join(args.datasetdir,'val'), "mask/val")
+    val_img_path = osp.join(osp.join(args.datasetdir,'val'), "image")
+    val_gt_path = osp.join(osp.join(args.datasetdir,'val'), "label")
     val_img_names = sorted(os.listdir(val_img_path))   
     val_gt_names = val_img_names
     val_img_num = len(val_img_names)
@@ -170,6 +170,7 @@ def main():
         shuffle=True,
         num_workers=args.num_workers,
         pin_memory=torch.cuda.is_available(),
+        drop_last=True
     )
     # create a validation data loader
     val_dataset = monai.data.Dataset(data=val_files, transform=val_transforms)
@@ -178,7 +179,8 @@ def main():
         batch_size=args.batch_size, 
         shuffle=False, 
         num_workers=args.num_workers,
-        pin_memory=torch.cuda.is_available()
+        pin_memory=torch.cuda.is_available(),
+        drop_last=True
     )
 
 # 2. model  
