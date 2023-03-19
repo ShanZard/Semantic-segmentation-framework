@@ -89,12 +89,11 @@ class Trainer(object):
                     desc='Valid iteration=%d' % self.iteration, ncols=80,
                     leave=False):
                 data = sample['img']
-                label=sample['label']
+                label=sample['label'].long()
                 if self.cuda:
                     data, label= data.cuda(),label.cuda()
                 with torch.no_grad():
                     predictions= self.model(data)
-                label=torch.squeeze(label).long()
                 loss_ce = celoss(predictions, label)
                 loss_de = diceloss(predictions, label)
                 loss_data_ce = loss_ce.data.item()
@@ -196,9 +195,7 @@ class Trainer(object):
                 param.requires_grad = True
 
             images = sampleS['img'].cuda()
-            label=sampleS['label'].cuda()
-            label=torch.squeeze(label).long()
-
+            label=sampleS['label'].cuda().long()
 
             output= self.model(images)
             loss_ce = celoss(output, label)
