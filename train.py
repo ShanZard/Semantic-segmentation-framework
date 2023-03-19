@@ -149,16 +149,18 @@ def main():
                 mode=["area", "nearest"],
             ),
             EnsureTyped(keys=["img", "label"]),
+            SqueezeDimd(keys=["label"],dim=0)
     ])
 
     val_transforms = Compose(
         [
             LoadImaged(keys=["img", "label"], reader=PILReader, dtype=np.uint8),
-            AddChanneld(keys=["label"], allow_missing_keys=True),
+            #AddChanneld(keys=["label"], allow_missing_keys=True), #if augmented label， release this code.
             AsChannelFirstd(keys=["img"], channel_dim=-1, allow_missing_keys=True),
             ScaleIntensityd(keys=["img"], allow_missing_keys=True),
             # AsDiscreted(keys=['label'], to_onehot=3),
             EnsureTyped(keys=["img", "label"]),
+            #SqueezeDimd(keys=["label"],dim=0        
         ]
     )
 
@@ -184,7 +186,7 @@ def main():
     )
 
 # 2. model  
-    model=smp.create_model(arch=args.model_name,encoder_name='imagenet',classes=args.num_classes)
+    model=smp.create_model(arch=args.model_name,encoder_name='resnet50',encoder_weights="imagenet",classes=args.num_classes)
     model=torch.nn.DataParallel(model.cuda(),device_ids=args.gpus)
 
 
