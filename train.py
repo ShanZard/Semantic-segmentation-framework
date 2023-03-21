@@ -93,7 +93,7 @@ def main():
 
 #The part of dataset
     train_img_path = osp.join(osp.join(args.datasetdir,'train'), "image")
-    train_gt_path = osp.join(osp.join(args.datasetdir,'train'), "label)
+    train_gt_path = osp.join(osp.join(args.datasetdir,'train'), "label")
     train_img_names = sorted(os.listdir(train_img_path))   
     train_gt_names = train_img_names
     train_img_num = len(train_img_names)
