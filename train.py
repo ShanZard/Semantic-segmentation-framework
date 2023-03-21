@@ -13,7 +13,6 @@ import yaml
 
 import torch.nn 
 # Custom includes
-from dataloaders import dataloader as DL
 from utils import Trainer
 import monai
 from monai.data import decollate_batch, PILReader
