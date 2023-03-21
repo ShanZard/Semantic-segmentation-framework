@@ -29,7 +29,7 @@ def main():
     parser.add_argument(
         '--save-dir',
         type=str,
-        default='./results/label/',
+        default='./results/',
         help='path to save label',
     )
     args = parser.parse_args()
@@ -39,8 +39,8 @@ def main():
     model_file = args.model_file
 
 # 1. dataset
-    test_img_path = osp.join(osp.join(args.data_dir,'val'), "images/val")
-    test_gt_path = osp.join(osp.join(args.data_dir,'val'), "mask/val")
+    test_img_path = osp.join(osp.join(args.data_dir,'test'), "image")
+    test_gt_path = osp.join(osp.join(args.data_dir,'test'), "label")
     test_img_names = sorted(os.listdir(test_img_path))   
     test_gt_names = test_img_names
     test_img_num = len(test_img_names)
