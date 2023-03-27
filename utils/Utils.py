@@ -1,12 +1,10 @@
 import os.path as osp
 import numpy as np
 import os
-import cv2
 from .convertrgb import out_to_rgb_np
 from .palette import CLASSES,PALETTE
 from torchvision import transforms
 from utils.metrics import *
-import cv2
 def saveimage(path,imagelist,label_list,pred_list,imagename_list):
     tran=transforms.ToPILImage()
     if not osp.exists(path):
