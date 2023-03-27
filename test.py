@@ -51,8 +51,7 @@ def main():
     ]
     test_transforms = Compose(
         [
-            LoadImaged(keys=["img", "label"], reader=PILReader, dtype=np.uint8),
-            AddChanneld(keys=["label"]),
+            LoadImaged(keys=["img", "label"], reader=PILReader, dtype=np.float32),
             AsChannelFirstd(keys=["img"], channel_dim=-1),
             ScaleIntensityd(keys=["img"]),
             # AsDiscreted(keys=['label'], to_onehot=3),
