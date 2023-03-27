@@ -120,7 +120,7 @@ def main():
 # 1. dataset
     train_transforms = transforms.Compose([
             LoadImaged(
-                keys=["img", "label"], reader=PILReader, dtype=np.uint8
+                keys=["img", "label"], reader=PILReader, dtype=np.float32
             ),  # image three channels (H, W, 3); label: (H, W)
             AddChanneld(keys=["label"], allow_missing_keys=True),  # label: (1, H, W)
             AsChannelFirstd(
@@ -153,7 +153,7 @@ def main():
 
     val_transforms = Compose(
         [
-            LoadImaged(keys=["img", "label"], reader=PILReader, dtype=np.uint8),
+            LoadImaged(keys=["img", "label"], reader=PILReader, dtype=np.float32),
             #AddChanneld(keys=["label"], allow_missing_keys=True), #if augmented label， release this code.
             AsChannelFirstd(keys=["img"], channel_dim=-1, allow_missing_keys=True),
             ScaleIntensityd(keys=["img"], allow_missing_keys=True),
