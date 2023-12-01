@@ -3,4 +3,4 @@ scipy
 scikit-image
 timm
 segmentation_models_pytorch
-monai
+monai==0.8.1
